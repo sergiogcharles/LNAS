@@ -14,6 +14,8 @@ from model import CNN
 from nni.nas.pytorch.callbacks import ArchitectureCheckpoint, LRSchedulerCallback
 from utils import accuracy
 
+from nni.algorithms.compression.pytorch.pruning import LotteryTicketPruner
+
 
 logger = logging.getLogger('nni')
 
@@ -53,7 +55,23 @@ if __name__ == "__main__":
         if args.visualization:
             trainer.enable_visualization()
 
-        trainer.train()
+        config_list = [{
+            'prune_iterations': 10,
+            'sparsity': 0.8,
+            'op_types': ['default']
+        }]
+
+        metrics_hist = []
+
+        # Iteratively prune architecture parameters with fixed sparsity
+        pruner = LotteryTicketPruner(trainer.mutator, config_list, trainer.ctrl_optim)
+        pruner.compress()
+        for i in pruner.get_prune_iterations():
+            print(f"Pruning iter {i}")
+            pruner.prune_iteration_start()
+            trainer.train()
+
+        # trainer.train()
     else:
         from nni.retiarii.oneshot.pytorch import DartsTrainer
         trainer = DartsTrainer(
