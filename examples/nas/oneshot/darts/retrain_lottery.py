@@ -16,16 +16,21 @@ from model import CNN
 from nni.nas.pytorch.fixed import apply_fixed_architecture
 from nni.nas.pytorch.utils import AverageMeter
 
+from nni.compression.pytorch.utils.counter import count_flops_params
 from nni.algorithms.compression.pytorch.pruning import LotteryTicketPruner
+from nni.compression.pytorch import apply_compression_results, ModelSpeedup
+import time
+import os
 
-logger = logging.getLogger('nni')
-
+# logger = logging.getLogger('nni')
+logger = None
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-writer = SummaryWriter()
+# writer = SummaryWriter(args.exp)
+writer= None
 
 
-def train(config, train_loader, model, optimizer, criterion, epoch):
+def train(config, train_loader, model, optimizer, criterion, epoch, prune_iter):
     top1 = AverageMeter("top1")
     top5 = AverageMeter("top5")
     losses = AverageMeter("losses")
@@ -70,8 +75,20 @@ def train(config, train_loader, model, optimizer, criterion, epoch):
 
     logger.info("Train: [{:3d}/{}] Final Prec@1 {:.4%}".format(epoch + 1, config.epochs, top1.avg))
 
+    # Write train loss to file
+    train_loss_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/train_loss.txt"
+    os.makedirs(os.path.dirname(train_loss_filename), exist_ok=True)
+    with open(train_loss_filename, "a") as f:
+        f.write(f'Train loss @ pruning iter {prune_iter} @ epoch {epoch}: {losses.avg}\n')
 
-def validate(config, valid_loader, model, criterion, epoch, cur_step):
+    # Write train accuracy to file
+    train_accuracy_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/train_accuracy.txt"
+    os.makedirs(os.path.dirname(train_accuracy_filename), exist_ok=True)
+    with open(train_accuracy_filename, "a") as f:
+        f.write(f'Train top-1 accuracy @ pruning iter {prune_iter} @ epoch {epoch}: {top1.avg}\n')
+
+
+def validate(config, valid_loader, model, criterion, epoch, cur_step, prune_iter):
     top1 = AverageMeter("top1")
     top5 = AverageMeter("top5")
     losses = AverageMeter("losses")
@@ -104,6 +121,18 @@ def validate(config, valid_loader, model, criterion, epoch, cur_step):
 
     logger.info("Valid: [{:3d}/{}] Final Prec@1 {:.4%}".format(epoch + 1, config.epochs, top1.avg))
 
+    # Write val loss to file
+    val_loss_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/val_loss.txt"
+    os.makedirs(os.path.dirname(val_loss_filename), exist_ok=True)
+    with open(val_loss_filename, "a") as f:
+        f.write(f'Val loss @ pruning iter {prune_iter} @ epoch {epoch}: {losses.avg}\n')
+
+    # Write val accuracy to file
+    val_accuracy_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/val_accuracy.txt"
+    os.makedirs(os.path.dirname(val_accuracy_filename), exist_ok=True)
+    with open(val_accuracy_filename, "a") as f:
+        f.write(f'Val top-1 accuracy @ pruning iter {prune_iter} @ epoch {epoch}: {top1.avg}\n')
+
     return top1.avg
 
 
@@ -118,6 +147,8 @@ if __name__ == "__main__":
     parser.add_argument("--workers", default=2)
     parser.add_argument("--grad-clip", default=5., type=float)
     parser.add_argument("--arc-checkpoint", default="./checkpoints/epoch_19.json")
+    parser.add_argument("--sparsity", type=float, required=True)
+    parser.add_argument("--exp", type=str, required=True)
 
     args = parser.parse_args()
     dataset_train, dataset_valid = datasets.get_dataset("cifar10", cutout_length=16)
@@ -142,10 +173,13 @@ if __name__ == "__main__":
                                                shuffle=False,
                                                num_workers=args.workers,
                                                pin_memory=True)
+
+    logger = logging.getLogger(os.path.join('logging', args.exp))
+    writer = SummaryWriter(os.path.join('summary', args.exp))
     
     config_list = [{
         'prune_iterations': 10,
-        'sparsity': 0.8,
+        'sparsity': args.sparsity,
         'op_types': ['default']
     }]
 
@@ -161,12 +195,19 @@ if __name__ == "__main__":
           model.drop_path_prob(drop_prob)
 
           # training
-          train(args, train_loader, model, optimizer, criterion, epoch)
+          train(args, train_loader, model, optimizer, criterion, epoch, i)
 
           # validation
           cur_step = (epoch + 1) * len(train_loader)
-          top1 = validate(args, valid_loader, model, criterion, epoch, cur_step)
+          top1 = validate(args, valid_loader, model, criterion, epoch, cur_step, i)
           # best_top1 = max(best_top1, top1)
+
+          # Write top1 to txt file
+          # Write accuracy at epoch
+        #   accuracies_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/accuracies.txt"
+        #   os.makedirs(os.path.dirname(accuracies_filename), exist_ok=True)
+        #   with open(accuracies_filename, "a") as f:
+        #       f.write('Prune iteration: ' + str(i) + ', ' + 'Epoch: ' + str(epoch) + ', ' + 'top 1: ' + str(top1) + '\n')
 
           if top1 > best_top1:
             best_top1 = top1
@@ -176,3 +217,57 @@ if __name__ == "__main__":
       print('prune iteration: {0}, Prec@1: {1}'.format(i, top1))
 
     logger.info("Final best Prec@1 = {:.4%}".format(best_top1))
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model.eval()
+
+    # apply_compression_results(model, mask_path, device)
+
+    dummy_input = torch.randn([1, 3, 32, 32]).to(device)
+
+    # test model speed
+    start = time.time()
+    for _ in range(32):
+    use_mask_out = model(dummy_input)
+    print('elapsed time when use mask: ', time.time() - start)
+
+    flops, params, results = count_flops_params(model, dummy_input)
+    print(f"FLOPs: {flops}, params: {params}")
+
+    # Perform speed up
+    m_speedup = ModelSpeedup(model, dummy_input, mask_path, device)
+    m_speedup.speedup_model()
+
+    flops, params, results = count_flops_params(model, dummy_input)
+    print(f"FLOPs: {flops}, params: {params} when using speedup")
+
+    start = time.time()
+    for _ in range(32):
+    use_speedup_out = model(dummy_input)
+    print('elapsed time when use speedup: ', time.time() - start)
+
+
+
+    # Write stats to txt files 
+    cwd = os.getcwd()
+
+    # Write best top1 accuracy
+    best_accuracy_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/best_accuracy.txt"
+    os.makedirs(os.path.dirname(best_accuracy_filename), exist_ok=True)
+    with open(best_accuracy_filename, "w") as f:
+        f.write('Best top 1: ' + str(best_top1))
+
+    # Write params 
+    params_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/params.txt"
+    os.makedirs(os.path.dirname(params_filename), exist_ok=True)
+    with open(params_filename, "w") as f:
+        f.write('Total params: ' + str(params) + '\n')
+        f.write(f'Equivalent to: {params/1e6:.3f}M')
+
+    # Write flops
+    flops_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/flops.txt"
+    os.makedirs(os.path.dirname(flops_filename), exist_ok=True)
+    with open(flops_filename, "w") as f:
+        f.write('Total flops: ' + str(flops) + '\n')
+        f.write(f'Equivalent to: {flops/1e6:.3f}M')

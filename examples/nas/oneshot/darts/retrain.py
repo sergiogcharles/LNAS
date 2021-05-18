@@ -15,6 +15,9 @@ from model import CNN
 from nni.nas.pytorch.fixed import apply_fixed_architecture
 from nni.nas.pytorch.utils import AverageMeter
 
+from nni.compression.pytorch.utils.counter import count_flops_params
+
+
 logger = logging.getLogger('nni')
 
 
@@ -109,12 +112,12 @@ if __name__ == "__main__":
     parser.add_argument("--layers", default=20, type=int)
     parser.add_argument("--batch-size", default=96, type=int)
     parser.add_argument("--log-frequency", default=10, type=int)
-    parser.add_argument("--epochs", default=600, type=int)
+    parser.add_argument("--epochs", default=20, type=int)
     parser.add_argument("--aux-weight", default=0.4, type=float)
     parser.add_argument("--drop-path-prob", default=0.2, type=float)
     parser.add_argument("--workers", default=4)
     parser.add_argument("--grad-clip", default=5., type=float)
-    parser.add_argument("--arc-checkpoint", default="./checkpoints/epoch_0.json")
+    parser.add_argument("--arc-checkpoint", default="./checkpoints/epoch_19.json")
 
     args = parser.parse_args()
     dataset_train, dataset_valid = datasets.get_dataset("cifar10", cutout_length=16)
@@ -156,3 +159,10 @@ if __name__ == "__main__":
         lr_scheduler.step()
 
     logger.info("Final best Prec@1 = {:.4%}".format(best_top1))
+
+    # Params and flops given input size (1, 1, 28, 28)
+    flops, params, results = count_flops_params(model, (1, 3, 28, 28))
+
+    # Format output size to M (i.e., 10^6)
+    print(f'FLOPs: {flops/1e6:.3f}M,  Params: {params/1e6:.3f}M')
+    # print(results)
