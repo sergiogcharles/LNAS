@@ -136,6 +136,24 @@ def validate(config, valid_loader, model, criterion, epoch, cur_step, prune_iter
     return top1.avg
 
 
+# def test(args, model, device, criterion, test_loader):
+#     model.eval()
+#     test_loss = 0
+#     correct = 0
+#     with torch.no_grad():
+#         for data, target in test_loader:
+#             data, target = data.to(device), target.to(device)
+#             output = model(data)
+#             test_loss += criterion(output, target).item()
+#             pred = output.argmax(dim=1, keepdim=True)
+#             correct += pred.eq(target.view_as(pred)).sum().item()
+#     test_loss /= len(test_loader.dataset)
+#     acc = 100 * correct / len(test_loader.dataset)
+
+#     print('Test Loss: {}  Accuracy: {}%\n'.format(
+#         test_loss, acc))
+#     return acc
+
 if __name__ == "__main__":
     parser = ArgumentParser("darts")
     parser.add_argument("--layers", default=20, type=int)
@@ -183,6 +201,11 @@ if __name__ == "__main__":
         'op_types': ['default']
     }]
 
+    model_path = os.path.join('./experiment_data', 'pruned_{}_{}_{}.pth'.format(
+        'darts', 'cifar10', 'lottery'))
+    mask_path = os.path.join('./experiment_data', 'mask_{}_{}_{}.pth'.format(
+        'darts', 'cifar10', 'lottery'))
+
     pruner = LotteryTicketPruner(model, config_list, optimizer)
     pruner.compress()
 
@@ -212,6 +235,9 @@ if __name__ == "__main__":
           if top1 > best_top1:
             best_top1 = top1
             best_state_dict = copy.deepcopy(model.state_dict())
+            # Export the best model, 'model_path' stores state_dict of the pruned model,
+            # mask_path stores mask_dict of the pruned model
+            pruner.export_model(model_path=model_path, mask_path=mask_path)
 
           lr_scheduler.step()
       print('prune iteration: {0}, Prec@1: {1}'.format(i, top1))
@@ -222,14 +248,14 @@ if __name__ == "__main__":
 
     model.eval()
 
-    # apply_compression_results(model, mask_path, device)
+    apply_compression_results(model, mask_path, device)
 
     dummy_input = torch.randn([1, 3, 32, 32]).to(device)
 
     # test model speed
     start = time.time()
     for _ in range(32):
-    use_mask_out = model(dummy_input)
+        use_mask_out = model(dummy_input)
     print('elapsed time when use mask: ', time.time() - start)
 
     flops, params, results = count_flops_params(model, dummy_input)
@@ -244,10 +270,11 @@ if __name__ == "__main__":
 
     start = time.time()
     for _ in range(32):
-    use_speedup_out = model(dummy_input)
+        use_speedup_out = model(dummy_input)
     print('elapsed time when use speedup: ', time.time() - start)
 
-
+    top1 = validate(args, valid_loader, model, criterion, epoch, 100, 100)
+    print(f'Top 1 after compression: {top1}')
 
     # Write stats to txt files 
     cwd = os.getcwd()
