@@ -231,7 +231,8 @@ if __name__ == "__main__":
     start = time.time()
     for _ in range(32):
         use_mask_out = model(dummy_input)
-    print('elapsed time when use mask: ', time.time() - start)
+    time_elapsed = time.time() - start
+    print('elapsed time when use mask: ', time_elapsed)
 
     flops, params, results = count_flops_params(model, dummy_input)
 
@@ -253,7 +254,7 @@ if __name__ == "__main__":
     flops_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/unpruned_latency.txt"
     os.makedirs(os.path.dirname(flops_filename), exist_ok=True)
     with open(flops_filename, "w") as f:
-        f.write('Latency: ' + str(time.time() - start) + '\n')
+        f.write('Latency: ' + str(time_elapsed) + '\n')
 
 
     # reset model weights and optimizer for pruning
@@ -266,6 +267,12 @@ if __name__ == "__main__":
         'sparsity': args.sparsity,
         'op_types': ['default']
     }]
+
+    print('start pruning...')
+    model_path = os.path.join('exp' + args.exp + '_sparsity_' + str(args.sparsity), 'pruned_{}_{}_{}.pth'.format(
+        'darts', 'cifar10', 'lottery'))
+    mask_path = os.path.join('exp' + args.exp + '_sparsity_' + str(args.sparsity), 'mask_{}_{}_{}.pth'.format(
+        'darts', 'cifar10', 'lottery'))
 
     pruner = LotteryTicketPruner(model, configure_list, optimizer)
     pruner.compress()
@@ -292,6 +299,9 @@ if __name__ == "__main__":
                 best_accuracy = accuracy
                 # state dict of weights and masks
                 best_state_dict = copy.deepcopy(model.state_dict())
+                pruner.export_model(model_path=model_path, mask_path=mask_path)
+            lr_scheduler.step()
+
         print('prune iteration: {0}, loss: {1}, accuracy: {2}'.format(i, loss, accuracy))
 
     # Write best top-1 accuracy obtained after iterative pruning to file
@@ -300,14 +310,28 @@ if __name__ == "__main__":
     with open(best_accuracy_filename, "w") as f:
         f.write('Best top 1: ' + str(best_accuracy))
 
-    # Compute latency
+    # Load in model from best acc checkpoint
+    model.load_state_dict(best_state_dict)
+    model.eval()
+
     # test model speed
     start = time.time()
     for _ in range(32):
         use_mask_out = model(dummy_input)
-    print('elapsed time when use mask: ', time.time() - start)
+    time_elapsed = time.time() - start
+    print('elapsed time when use mask: ', time_elapsed)
+
+    m_speedup = ModelSpeedup(model, dummy_input, mask_path, device)
+    m_speedup.speedup_model()
 
     flops, params, results = count_flops_params(model, dummy_input)
+    print(f"FLOPs: {flops}, params: {params}")
+
+    start = time.time()
+    for _ in range(32):
+        use_speedup_out = model(dummy_input)
+    time_elapsed = time.time() - start
+    print('elapsed time when use speedup: ', time_elapsed)
 
     # Write params 
     params_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/params.txt"
@@ -327,7 +351,7 @@ if __name__ == "__main__":
     flops_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/latency.txt"
     os.makedirs(os.path.dirname(flops_filename), exist_ok=True)
     with open(flops_filename, "w") as f:
-        f.write('Latency: ' + str(time.time() - start) + '\n')
+        f.write('Latency: ' + str(time_elapsed) + '\n')
 
     if best_accuracy > best_orig_top1:
         # load weights and masks
