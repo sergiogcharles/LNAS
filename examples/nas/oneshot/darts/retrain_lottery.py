@@ -75,23 +75,30 @@ def train(config, train_loader, model, optimizer, criterion, epoch, prune_iter=N
 
     logger.info("Train: [{:3d}/{}] Final Prec@1 {:.4%}".format(epoch + 1, config.epochs, top1.avg))
 
-    # Write train loss to file
-    train_loss_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/train_loss.txt"
-    os.makedirs(os.path.dirname(train_loss_filename), exist_ok=True)
-    with open(train_loss_filename, "a") as f:
-        if prune_iter:
+    if prune_iter:
+        # Write train loss to file
+        train_loss_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/train_loss.txt"
+        os.makedirs(os.path.dirname(train_loss_filename), exist_ok=True)
+        with open(train_loss_filename, "a") as f:
             f.write(f'Train loss @ pruning iter {prune_iter} @ epoch {epoch}: {losses.avg}\n')
-        else:
+
+        # Write train accuracy to file
+        train_accuracy_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/train_accuracy.txt"
+        os.makedirs(os.path.dirname(train_accuracy_filename), exist_ok=True)
+        with open(train_accuracy_filename, "a") as f:
+            f.write(f'Train top-1 accuracy @ pruning iter {prune_iter} @ epoch {epoch}: {top1.avg}\n')
+    else:
+        # Write train loss to file
+        train_loss_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/unpruned_train_loss.txt"
+        os.makedirs(os.path.dirname(train_loss_filename), exist_ok=True)
+        with open(train_loss_filename, "a") as f:
             f.write(f'Train loss @ epoch {epoch}: {losses.avg}\n')
 
-    # Write train accuracy to file
-    train_accuracy_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/train_accuracy.txt"
-    os.makedirs(os.path.dirname(train_accuracy_filename), exist_ok=True)
-    with open(train_accuracy_filename, "a") as f:
-        if prune_iter:
-            f.write(f'Train top-1 accuracy @ pruning iter {prune_iter} @ epoch {epoch}: {top1.avg}\n')
-        else:
-            f.write(f'Train loss @ epoch {epoch}: {losses.avg}\n')
+        # Write train accuracy to file
+        train_accuracy_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/unpruned_train_accuracy.txt"
+        os.makedirs(os.path.dirname(train_accuracy_filename), exist_ok=True)
+        with open(train_accuracy_filename, "a") as f:
+            f.write(f'Train top-1 accuracy @ epoch {epoch}: {top1.avg}\n')
 
     return losses.avg
 
@@ -129,22 +136,28 @@ def validate(config, valid_loader, model, criterion, epoch, cur_step, prune_iter
 
     logger.info("Valid: [{:3d}/{}] Final Prec@1 {:.4%}".format(epoch + 1, config.epochs, top1.avg))
 
-    # Write val loss to file
-    val_loss_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/val_loss.txt"
-    os.makedirs(os.path.dirname(val_loss_filename), exist_ok=True)
-    with open(val_loss_filename, "a") as f:
-        if prune_iter:
+    if prune_iter:
+        # Write val loss to file
+        val_loss_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/val_loss.txt"
+        os.makedirs(os.path.dirname(val_loss_filename), exist_ok=True)
+        with open(val_loss_filename, "a") as f:
             f.write(f'Val loss @ pruning iter {prune_iter} @ epoch {epoch}: {losses.avg}\n')
-        else:
+        # Write val accuracy to file
+        val_accuracy_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/val_accuracy.txt"
+        os.makedirs(os.path.dirname(val_accuracy_filename), exist_ok=True)
+        with open(val_accuracy_filename, "a") as f:
+            f.write(f'Val top-1 accuracy @ pruning iter {prune_iter} @ epoch {epoch}: {top1.avg}\n')
+    else:
+        # Write val loss to file
+        val_loss_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/unpruned_val_loss.txt"
+        os.makedirs(os.path.dirname(val_loss_filename), exist_ok=True)
+        with open(val_loss_filename, "a") as f:
             f.write(f'Val loss @ epoch {epoch}: {losses.avg}\n')
 
-    # Write val accuracy to file
-    val_accuracy_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/val_accuracy.txt"
-    os.makedirs(os.path.dirname(val_accuracy_filename), exist_ok=True)
-    with open(val_accuracy_filename, "a") as f:
-        if prune_iter:
-            f.write(f'Val top-1 accuracy @ pruning iter {prune_iter} @ epoch {epoch}: {top1.avg}\n')
-        else:
+        # Write val accuracy to file
+        val_accuracy_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/unpruned_val_accuracy.txt"
+        os.makedirs(os.path.dirname(val_accuracy_filename), exist_ok=True)
+        with open(val_accuracy_filename, "a") as f:
             f.write(f'Val top-1 accuracy @ epoch {epoch}: {top1.avg}\n')
 
     return top1.avg
@@ -163,6 +176,7 @@ if __name__ == "__main__":
     parser.add_argument("--arc-checkpoint", default="./checkpoints/epoch_19.json")
     parser.add_argument("--sparsity", type=float, required=True)
     parser.add_argument("--exp", type=str, required=True)
+    parser.add_argument("--unpruned_epochs", default=20, type=int)
 
     args = parser.parse_args()
     dataset_train, dataset_valid = datasets.get_dataset("cifar10", cutout_length=16)
@@ -196,7 +210,7 @@ if __name__ == "__main__":
 
     # train the model to get unpruned metrics
     best_orig_top1 = 0.
-    for epoch in range(args.epochs):
+    for epoch in range(args.unpruned_epochs):
         drop_prob = args.drop_path_prob * epoch / args.epochs
         model.drop_path_prob(drop_prob)
 
@@ -211,16 +225,55 @@ if __name__ == "__main__":
         lr_scheduler.step()
     print('unpruned model accuracy: {}'.format(best_orig_top1))
 
+    # Compute latency
+    dummy_input = torch.randn([1, 3, 32, 32]).to(device)
+
+    # test model speed
+    start = time.time()
+    for _ in range(32):
+        use_mask_out = model(dummy_input)
+    time_elapsed = time.time() - start
+    print('elapsed time when use mask: ', time_elapsed)
+
+    flops, params, results = count_flops_params(model, dummy_input)
+
+    # Write params 
+    params_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/unpruned_params.txt"
+    os.makedirs(os.path.dirname(params_filename), exist_ok=True)
+    with open(params_filename, "w") as f:
+        f.write('Total params: ' + str(params) + '\n')
+        f.write(f'Equivalent to: {params/1e6:.3f}M')
+
+    # Write flops
+    flops_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/unpruned_flops.txt"
+    os.makedirs(os.path.dirname(flops_filename), exist_ok=True)
+    with open(flops_filename, "w") as f:
+        f.write('Total flops: ' + str(flops) + '\n')
+        f.write(f'Equivalent to: {flops/1e6:.3f}M')
+
+    # Write latency
+    flops_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/unpruned_latency.txt"
+    os.makedirs(os.path.dirname(flops_filename), exist_ok=True)
+    with open(flops_filename, "w") as f:
+        f.write('Latency: ' + str(time_elapsed) + '\n')
+
+
     # reset model weights and optimizer for pruning
     model.load_state_dict(orig_state)
     optimizer = torch.optim.Adam(model.parameters(), lr=1.2e-3)
 
     # Prune the model to find a winning ticket
     configure_list = [{
-        'prune_iterations': 1,
-        'sparsity': sparsity,
+        'prune_iterations': 10,
+        'sparsity': args.sparsity,
         'op_types': ['default']
     }]
+
+    print('start pruning...')
+    model_path = os.path.join('exp' + args.exp + '_sparsity_' + str(args.sparsity), 'pruned_{}_{}_{}.pth'.format(
+        'darts', 'cifar10', 'lottery'))
+    mask_path = os.path.join('exp' + args.exp + '_sparsity_' + str(args.sparsity), 'mask_{}_{}_{}.pth'.format(
+        'darts', 'cifar10', 'lottery'))
 
     pruner = LotteryTicketPruner(model, configure_list, optimizer)
     pruner.compress()
@@ -232,40 +285,83 @@ if __name__ == "__main__":
         pruner.prune_iteration_start()
         loss = 0
         accuracy = 0
-        for epoch in range(args.train_epochs):
+        for epoch in range(args.epochs):
             drop_prob = args.drop_path_prob * epoch / args.epochs
             model.drop_path_prob(drop_prob)
 
-            loss = train(model, train_loader, optimizer, criterion)
-            accuracy = test(model, test_loader, criterion)
-            print('current epoch: {0}, loss: {1}, accuracy: {2}'.format(epoch, loss, accuracy))
+            #loss = train(model, train_loader, optimizer, criterion)
+            loss = train(args, train_loader, model, optimizer, criterion, epoch, i)
 
             cur_step = (epoch + 1) * len(train_loader)
             accuracy = validate(args, valid_loader, model, criterion, epoch, cur_step, i)
+            print('current epoch: {0}, loss: {1}, accuracy: {2}'.format(epoch, loss, accuracy))
 
             if accuracy > best_accuracy:
                 best_accuracy = accuracy
                 # state dict of weights and masks
                 best_state_dict = copy.deepcopy(model.state_dict())
+                pruner.export_model(model_path=model_path, mask_path=mask_path)
+            lr_scheduler.step()
+
         print('prune iteration: {0}, loss: {1}, accuracy: {2}'.format(i, loss, accuracy))
 
-        # drop_prob = args.drop_path_prob * epoch / args.epochs
-        # model.drop_path_prob(drop_prob)
+    # Write best top-1 accuracy obtained after iterative pruning to file
+    best_accuracy_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/best_accuracy.txt"
+    os.makedirs(os.path.dirname(best_accuracy_filename), exist_ok=True)
+    with open(best_accuracy_filename, "w") as f:
+        f.write('Best top 1: ' + str(best_accuracy))
 
-        # # training
-        # train(args, train_loader, model, optimizer, criterion, epoch, i)
+    # Load in model from best acc checkpoint
+    model.load_state_dict(best_state_dict)
+    model.eval()
 
-        # # validation
-        # cur_step = (epoch + 1) * len(train_loader)
-        # top1 = validate(args, valid_loader, model, criterion, epoch, cur_step, i)
-        # # best_top1 = max(best_top1, top1)
+    # test model speed
+    start = time.time()
+    for _ in range(32):
+        use_mask_out = model(dummy_input)
+    time_elapsed = time.time() - start
+    print('elapsed time when use mask: ', time_elapsed)
 
-    if best_accuracy > orig_accuracy:
+    m_speedup = ModelSpeedup(model, dummy_input, mask_path, device)
+    m_speedup.speedup_model()
+
+    flops, params, results = count_flops_params(model, dummy_input)
+    print(f"FLOPs: {flops}, params: {params}")
+
+    start = time.time()
+    for _ in range(32):
+        use_speedup_out = model(dummy_input)
+    time_elapsed = time.time() - start
+    print('elapsed time when use speedup: ', time_elapsed)
+
+    # Write params 
+    params_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/params.txt"
+    os.makedirs(os.path.dirname(params_filename), exist_ok=True)
+    with open(params_filename, "w") as f:
+        f.write('Total params: ' + str(params) + '\n')
+        f.write(f'Equivalent to: {params/1e6:.3f}M')
+
+    # Write flops
+    flops_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/flops.txt"
+    os.makedirs(os.path.dirname(flops_filename), exist_ok=True)
+    with open(flops_filename, "w") as f:
+        f.write('Total flops: ' + str(flops) + '\n')
+        f.write(f'Equivalent to: {flops/1e6:.3f}M')
+
+    # Write latency
+    flops_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/latency.txt"
+    os.makedirs(os.path.dirname(flops_filename), exist_ok=True)
+    with open(flops_filename, "w") as f:
+        f.write('Latency: ' + str(time_elapsed) + '\n')
+
+    if best_accuracy > best_orig_top1:
         # load weights and masks
         pruner.bound_model.load_state_dict(best_state_dict)
         # reset weights to original untrained model and keep masks unchanged to export winning ticket
         pruner.load_model_state_dict(orig_state)
-        pruner.export_model('model_winning_ticket.pth', 'mask_winning_ticket.pth')
+        pruner.export_model(
+            'exp' + args.exp + '_sparsity_' + str(args.sparsity) + '_model_winning_ticket.pth', 
+            'exp' + args.exp + '_sparsity_' + str(args.sparsity) + '_mask_winning_ticket.pth')
         print('winning ticket has been saved: model_winning_ticket.pth, mask_winning_ticket.pth')
     else:
         print('winning ticket is not found in this run, you can run it again.')
@@ -364,5 +460,3 @@ if __name__ == "__main__":
     # with open(flops_filename, "w") as f:
     #     f.write('Total flops: ' + str(flops) + '\n')
     #     f.write(f'Equivalent to: {flops/1e6:.3f}M')
-
-    
