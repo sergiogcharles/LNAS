@@ -176,6 +176,7 @@ if __name__ == "__main__":
     parser.add_argument("--arc-checkpoint", default="./checkpoints/epoch_19.json")
     parser.add_argument("--sparsity", type=float, required=True)
     parser.add_argument("--exp", type=str, required=True)
+    parser.add_argument("--unpruned_epochs", default=20, type=int)
 
     args = parser.parse_args()
     dataset_train, dataset_valid = datasets.get_dataset("cifar10", cutout_length=16)
@@ -209,7 +210,7 @@ if __name__ == "__main__":
 
     # train the model to get unpruned metrics
     best_orig_top1 = 0.
-    for epoch in range(args.epochs):
+    for epoch in range(args.unpruned_epochs):
         drop_prob = args.drop_path_prob * epoch / args.epochs
         model.drop_path_prob(drop_prob)
 
@@ -255,7 +256,6 @@ if __name__ == "__main__":
     os.makedirs(os.path.dirname(flops_filename), exist_ok=True)
     with open(flops_filename, "w") as f:
         f.write('Latency: ' + str(time_elapsed) + '\n')
-
 
     # reset model weights and optimizer for pruning
     model.load_state_dict(orig_state)
