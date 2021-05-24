@@ -75,7 +75,7 @@ def train(config, train_loader, model, optimizer, criterion, epoch, prune_iter=N
 
     logger.info("Train: [{:3d}/{}] Final Prec@1 {:.4%}".format(epoch + 1, config.epochs, top1.avg))
 
-    if prune_iter:
+    if prune_iter != None:
         # Write train loss to file
         train_loss_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/train_loss.txt"
         os.makedirs(os.path.dirname(train_loss_filename), exist_ok=True)
@@ -136,7 +136,7 @@ def validate(config, valid_loader, model, criterion, epoch, cur_step, prune_iter
 
     logger.info("Valid: [{:3d}/{}] Final Prec@1 {:.4%}".format(epoch + 1, config.epochs, top1.avg))
 
-    if prune_iter:
+    if prune_iter != None:
         # Write val loss to file
         val_loss_filename = 'exp' + config.exp + '_sparsity_' + str(config.sparsity) + "/val_loss.txt"
         os.makedirs(os.path.dirname(val_loss_filename), exist_ok=True)
@@ -162,13 +162,12 @@ def validate(config, valid_loader, model, criterion, epoch, cur_step, prune_iter
 
     return top1.avg
 
-
 if __name__ == "__main__":
     parser = ArgumentParser("darts")
     parser.add_argument("--layers", default=20, type=int)
     parser.add_argument("--batch-size", default=96, type=int)
     parser.add_argument("--log-frequency", default=10, type=int)
-    parser.add_argument("--epochs", default=1, type=int)
+    parser.add_argument("--epochs", default=2, type=int)
     parser.add_argument("--aux-weight", default=0.4, type=float)
     parser.add_argument("--drop-path-prob", default=0.2, type=float)
     parser.add_argument("--workers", default=2)
@@ -225,6 +224,12 @@ if __name__ == "__main__":
         lr_scheduler.step()
     print('unpruned model accuracy: {}'.format(best_orig_top1))
 
+    # Write best unpruned top-1 accuracy to file
+    unpruned_best_accuracy_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/unpruned_best_accuracy.txt"
+    os.makedirs(os.path.dirname(unpruned_best_accuracy_filename), exist_ok=True)
+    with open(unpruned_best_accuracy_filename, "w") as f:
+        f.write('Best top 1: ' + str(best_orig_top1))
+
     # Compute latency
     dummy_input = torch.randn([1, 3, 32, 32]).to(device)
 
@@ -263,7 +268,7 @@ if __name__ == "__main__":
 
     # Prune the model to find a winning ticket
     configure_list = [{
-        'prune_iterations': 1,
+        'prune_iterations': 10,
         'sparsity': args.sparsity,
         'op_types': ['default']
     }]
