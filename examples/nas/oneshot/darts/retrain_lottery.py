@@ -65,10 +65,17 @@ def train(config, train_loader, model, optimizer, criterion, epoch, prune_iter=N
         writer.add_scalar("acc5/train", accuracy["acc5"], global_step=cur_step)
 
         if step % config.log_frequency == 0 or step == len(train_loader) - 1:
-            logger.info(
+            if prune_iter != None:
+                logger.info(
+                    "Train: [{:3d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
+                    "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
+                        epoch + 1, config.epochs, step, len(train_loader) - 1, losses=losses,
+                        top1=top1, top5=top5))
+            else:
+                logger.info(
                 "Train: [{:3d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
                 "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
-                    epoch + 1, config.epochs, step, len(train_loader) - 1, losses=losses,
+                    epoch + 1, config.unpruned_epochs, step, len(train_loader) - 1, losses=losses,
                     top1=top1, top5=top5))
 
         cur_step += 1
@@ -124,11 +131,18 @@ def validate(config, valid_loader, model, criterion, epoch, cur_step, prune_iter
             top5.update(accuracy["acc5"], bs)
 
             if step % config.log_frequency == 0 or step == len(valid_loader) - 1:
-                logger.info(
-                    "Valid: [{:3d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
-                    "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
-                        epoch + 1, config.epochs, step, len(valid_loader) - 1, losses=losses,
-                        top1=top1, top5=top5))
+                if prune_iter != None:
+                    logger.info(
+                        "Valid: [{:3d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
+                        "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
+                            epoch + 1, config.epochs, step, len(valid_loader) - 1, losses=losses,
+                            top1=top1, top5=top5))
+                else:
+                    logger.info(
+                        "Valid: [{:3d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
+                        "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
+                            epoch + 1, config.unpruned_epochs, step, len(valid_loader) - 1, losses=losses,
+                            top1=top1, top5=top5))
 
     writer.add_scalar("loss/test", losses.avg, global_step=cur_step)
     writer.add_scalar("acc1/test", top1.avg, global_step=cur_step)
@@ -188,7 +202,7 @@ if __name__ == "__main__":
     criterion.to(device)
 
     optimizer = torch.optim.SGD(model.parameters(), 0.025, momentum=0.9, weight_decay=3.0E-4)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, eta_min=1E-6)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.unpruned_epochs, eta_min=1E-6)
 
     train_loader = torch.utils.data.DataLoader(dataset_train,
                                                batch_size=args.batch_size,
@@ -210,7 +224,7 @@ if __name__ == "__main__":
     # train the model to get unpruned metrics
     best_orig_top1 = 0.
     for epoch in range(args.unpruned_epochs):
-        drop_prob = args.drop_path_prob * epoch / args.epochs
+        drop_prob = args.drop_path_prob * epoch / args.unpruned_epochs
         model.drop_path_prob(drop_prob)
 
         # training
@@ -265,6 +279,7 @@ if __name__ == "__main__":
     # reset model weights and optimizer for pruning
     model.load_state_dict(orig_state)
     optimizer = torch.optim.Adam(model.parameters(), lr=1.2e-3)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, eta_min=1E-6)
 
     # Prune the model to find a winning ticket
     configure_list = [{

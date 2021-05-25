@@ -1,0 +1,2 @@
+Total flops: tensor(1.5592e+08, device='cuda:0')
+Equivalent to: 155.917M
