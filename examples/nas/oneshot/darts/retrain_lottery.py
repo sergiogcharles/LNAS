@@ -181,7 +181,7 @@ if __name__ == "__main__":
     parser.add_argument("--layers", default=20, type=int)
     parser.add_argument("--batch-size", default=96, type=int)
     parser.add_argument("--log-frequency", default=10, type=int)
-    parser.add_argument("--epochs", default=3, type=int)
+    parser.add_argument("--epochs", default=4, type=int)
     parser.add_argument("--aux-weight", default=0.4, type=float)
     parser.add_argument("--drop-path-prob", default=0.2, type=float)
     parser.add_argument("--workers", default=2)
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     parser.add_argument("--arc-checkpoint", default="./checkpoints/epoch_19.json")
     parser.add_argument("--sparsity", type=float, required=True)
     parser.add_argument("--exp", type=str, required=True)
-    parser.add_argument("--unpruned_epochs", default=10, type=int)
+    parser.add_argument("--unpruned_epochs", default=20, type=int)
 
     args = parser.parse_args()
     dataset_train, dataset_valid = datasets.get_dataset("cifar10", cutout_length=16)
