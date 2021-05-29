@@ -181,7 +181,7 @@ if __name__ == "__main__":
     parser.add_argument("--layers", default=20, type=int)
     parser.add_argument("--batch-size", default=96, type=int)
     parser.add_argument("--log-frequency", default=10, type=int)
-    parser.add_argument("--epochs", default=2, type=int)
+    parser.add_argument("--epochs", default=3, type=int)
     parser.add_argument("--aux-weight", default=0.4, type=float)
     parser.add_argument("--drop-path-prob", default=0.2, type=float)
     parser.add_argument("--workers", default=2)
@@ -189,10 +189,17 @@ if __name__ == "__main__":
     parser.add_argument("--arc-checkpoint", default="./checkpoints/epoch_19.json")
     parser.add_argument("--sparsity", type=float, required=True)
     parser.add_argument("--exp", type=str, required=True)
-    parser.add_argument("--unpruned_epochs", default=20, type=int)
+    parser.add_argument("--unpruned_epochs", default=10, type=int)
 
     args = parser.parse_args()
     dataset_train, dataset_valid = datasets.get_dataset("cifar10", cutout_length=16)
+    
+    # dataset_train = torch.utils.data.Subset(dataset_train, torch.arange(10000))
+    # dataset_valid = torch.utils.data.Subset(dataset_valid, torch.arange(5000))
+    
+    # print(len(dataset_train))
+    # print(len(dataset_valid))
+    print("Cosine annealing removed, all steps.")
 
     model = CNN(32, 3, 36, 10, args.layers, auxiliary=True)
     apply_fixed_architecture(model, args.arc_checkpoint)
@@ -234,7 +241,7 @@ if __name__ == "__main__":
         cur_step = (epoch + 1) * len(train_loader)
         top1 = validate(args, valid_loader, model, criterion, epoch, cur_step)
         best_orig_top1 = max(best_orig_top1, top1)
-
+        
         lr_scheduler.step()
     print('unpruned model accuracy: {}'.format(best_orig_top1))
 
@@ -278,12 +285,12 @@ if __name__ == "__main__":
 
     # reset model weights and optimizer for pruning
     model.load_state_dict(orig_state)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1.2e-3)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, eta_min=1E-6)
+    optimizer = torch.optim.SGD(model.parameters(), 0.025, momentum=0.9, weight_decay=3.0E-4)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.unpruned_epochs, eta_min=1E-6)
 
     # Prune the model to find a winning ticket
     configure_list = [{
-        'prune_iterations': 10,
+        'prune_iterations': 5,
         'sparsity': args.sparsity,
         'op_types': ['default']
     }]
@@ -320,6 +327,7 @@ if __name__ == "__main__":
                 # state dict of weights and masks
                 best_state_dict = copy.deepcopy(model.state_dict())
                 pruner.export_model(model_path=model_path, mask_path=mask_path)
+            
             lr_scheduler.step()
 
         print('prune iteration: {0}, loss: {1}, accuracy: {2}'.format(i, loss, accuracy))
