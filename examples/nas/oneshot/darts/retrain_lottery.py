@@ -207,7 +207,7 @@ if __name__ == "__main__":
     model.to(device)
     criterion.to(device)
 
-    optimizer = torch.optim.SGD(model.parameters(), 0.025, momentum=0.9, weight_decay=3.0E-4)
+    optimizer = torch.optim.SGD(model.parameters(), 0.025, momentum=0.9, weight_decay=3.0E-5)
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.unpruned_epochs, eta_min=1E-6)
 
     train_loader = torch.utils.data.DataLoader(dataset_train,
@@ -225,67 +225,69 @@ if __name__ == "__main__":
     writer = SummaryWriter(os.path.join('summary', args.exp))
 
     # Record the random intialized model weights
-    orig_state = copy.deepcopy(model.state_dict())
+#     orig_state = copy.deepcopy(model.state_dict())
 
+    # Found from running unpruned training
+    best_orig_top1 = 86.06
     # train the model to get unpruned metrics
-    best_orig_top1 = 0.
-    for epoch in range(args.unpruned_epochs):
-        drop_prob = args.drop_path_prob * epoch / args.unpruned_epochs
-        model.drop_path_prob(drop_prob)
+#     best_orig_top1 = 0.
+#     for epoch in range(args.unpruned_epochs):
+#         drop_prob = args.drop_path_prob * epoch / args.unpruned_epochs
+#         model.drop_path_prob(drop_prob)
 
-        # training
-        train(args, train_loader, model, optimizer, criterion, epoch)
+#         # training
+#         train(args, train_loader, model, optimizer, criterion, epoch)
 
-        # validation
-        cur_step = (epoch + 1) * len(train_loader)
-        top1 = validate(args, valid_loader, model, criterion, epoch, cur_step)
-        best_orig_top1 = max(best_orig_top1, top1)
+#         # validation
+#         cur_step = (epoch + 1) * len(train_loader)
+#         top1 = validate(args, valid_loader, model, criterion, epoch, cur_step)
+#         best_orig_top1 = max(best_orig_top1, top1)
         
-        lr_scheduler.step()
-    print('unpruned model accuracy: {}'.format(best_orig_top1))
+#         lr_scheduler.step()
+#     print('unpruned model accuracy: {}'.format(best_orig_top1))
 
-    # Write best unpruned top-1 accuracy to file
-    unpruned_best_accuracy_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/unpruned_best_accuracy.txt"
-    os.makedirs(os.path.dirname(unpruned_best_accuracy_filename), exist_ok=True)
-    with open(unpruned_best_accuracy_filename, "w") as f:
-        f.write('Best top 1: ' + str(best_orig_top1))
+#     # Write best unpruned top-1 accuracy to file
+#     unpruned_best_accuracy_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/unpruned_best_accuracy.txt"
+#     os.makedirs(os.path.dirname(unpruned_best_accuracy_filename), exist_ok=True)
+#     with open(unpruned_best_accuracy_filename, "w") as f:
+#         f.write('Best top 1: ' + str(best_orig_top1))
 
     # Compute latency
     dummy_input = torch.randn([1, 3, 32, 32]).to(device)
 
     # test model speed
-    start = time.time()
-    for _ in range(32):
-        use_mask_out = model(dummy_input)
-    time_elapsed = time.time() - start
-    print('elapsed time when use mask: ', time_elapsed)
+#     start = time.time()
+#     for _ in range(32):
+#         use_mask_out = model(dummy_input)
+#     time_elapsed = time.time() - start
+#     print('elapsed time when use mask: ', time_elapsed)
 
-    flops, params, results = count_flops_params(model, dummy_input)
+#     flops, params, results = count_flops_params(model, dummy_input)
 
-    # Write params 
-    params_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/unpruned_params.txt"
-    os.makedirs(os.path.dirname(params_filename), exist_ok=True)
-    with open(params_filename, "w") as f:
-        f.write('Total params: ' + str(params) + '\n')
-        f.write(f'Equivalent to: {params/1e6:.3f}M')
+#     # Write params 
+#     params_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/unpruned_params.txt"
+#     os.makedirs(os.path.dirname(params_filename), exist_ok=True)
+#     with open(params_filename, "w") as f:
+#         f.write('Total params: ' + str(params) + '\n')
+#         f.write(f'Equivalent to: {params/1e6:.3f}M')
 
-    # Write flops
-    flops_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/unpruned_flops.txt"
-    os.makedirs(os.path.dirname(flops_filename), exist_ok=True)
-    with open(flops_filename, "w") as f:
-        f.write('Total flops: ' + str(flops) + '\n')
-        f.write(f'Equivalent to: {flops/1e6:.3f}M')
+#     # Write flops
+#     flops_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/unpruned_flops.txt"
+#     os.makedirs(os.path.dirname(flops_filename), exist_ok=True)
+#     with open(flops_filename, "w") as f:
+#         f.write('Total flops: ' + str(flops) + '\n')
+#         f.write(f'Equivalent to: {flops/1e6:.3f}M')
 
-    # Write latency
-    flops_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/unpruned_latency.txt"
-    os.makedirs(os.path.dirname(flops_filename), exist_ok=True)
-    with open(flops_filename, "w") as f:
-        f.write('Latency: ' + str(time_elapsed) + '\n')
+#     # Write latency
+#     flops_filename = 'exp' + args.exp + '_sparsity_' + str(args.sparsity) + "/unpruned_latency.txt"
+#     os.makedirs(os.path.dirname(flops_filename), exist_ok=True)
+#     with open(flops_filename, "w") as f:
+#         f.write('Latency: ' + str(time_elapsed) + '\n')
 
     # reset model weights and optimizer for pruning
-    model.load_state_dict(orig_state)
-    optimizer = torch.optim.SGD(model.parameters(), 0.025, momentum=0.9, weight_decay=3.0E-4)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.unpruned_epochs, eta_min=1E-6)
+#     model.load_state_dict(orig_state)
+#     optimizer = torch.optim.SGD(model.parameters(), 0.025, momentum=0.9, weight_decay=3.0E-4)
+#     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.unpruned_epochs, eta_min=1E-6)
 
     # Prune the model to find a winning ticket
     configure_list = [{
