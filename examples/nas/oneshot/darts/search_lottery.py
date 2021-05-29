@@ -51,7 +51,7 @@ if __name__ == "__main__":
                                batch_size=args.batch_size,
                                log_frequency=args.log_frequency,
                                unrolled=args.unrolled,
-                               callbacks=[LRSchedulerCallback(lr_scheduler), ArchitectureCheckpoint("./checkpoints_variant1")])
+                               callbacks=[LRSchedulerCallback(lr_scheduler), ArchitectureCheckpoint("./checkpoints_variant2")])
         if args.visualization:
             trainer.enable_visualization()
 
