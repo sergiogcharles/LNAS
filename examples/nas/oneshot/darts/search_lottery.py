@@ -24,7 +24,7 @@ if __name__ == "__main__":
     parser.add_argument("--layers", default=8, type=int)
     parser.add_argument("--batch-size", default=64, type=int)
     parser.add_argument("--log-frequency", default=10, type=int)
-    parser.add_argument("--epochs", default=20, type=int)
+    parser.add_argument("--epochs", default=2, type=int)
     parser.add_argument("--channels", default=16, type=int)
     parser.add_argument("--unrolled", default=False, action="store_true")
     parser.add_argument("--visualization", default=False, action="store_true")
@@ -51,7 +51,7 @@ if __name__ == "__main__":
                                batch_size=args.batch_size,
                                log_frequency=args.log_frequency,
                                unrolled=args.unrolled,
-                               callbacks=[LRSchedulerCallback(lr_scheduler), ArchitectureCheckpoint("./checkpoints")])
+                               callbacks=[LRSchedulerCallback(lr_scheduler), ArchitectureCheckpoint("./checkpoints_variant1")])
         if args.visualization:
             trainer.enable_visualization()
 
@@ -70,7 +70,8 @@ if __name__ == "__main__":
             print(f"Pruning iter {i}")
             pruner.prune_iteration_start()
             trainer.train()
-
+        
+        
         # trainer.train()
     else:
         from nni.retiarii.oneshot.pytorch import DartsTrainer
