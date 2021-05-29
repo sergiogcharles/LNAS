@@ -199,7 +199,6 @@ if __name__ == "__main__":
     
     # print(len(dataset_train))
     # print(len(dataset_valid))
-    print("Cosine annealing removed, all steps.")
 
     model = CNN(32, 3, 36, 10, args.layers, auxiliary=True)
     apply_fixed_architecture(model, args.arc_checkpoint)
