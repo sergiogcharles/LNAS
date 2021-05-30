@@ -181,7 +181,7 @@ if __name__ == "__main__":
     parser.add_argument("--layers", default=20, type=int)
     parser.add_argument("--batch-size", default=96, type=int)
     parser.add_argument("--log-frequency", default=10, type=int)
-    parser.add_argument("--epochs", default=10, type=int)
+    parser.add_argument("--epochs", default=20, type=int)
     parser.add_argument("--aux-weight", default=0.4, type=float)
     parser.add_argument("--drop-path-prob", default=0.2, type=float)
     parser.add_argument("--workers", default=2)
@@ -207,8 +207,9 @@ if __name__ == "__main__":
     model.to(device)
     criterion.to(device)
 
-    optimizer = torch.optim.SGD(model.parameters(), 0.025, momentum=0.9, weight_decay=3.0E-5)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.unpruned_epochs, eta_min=1E-6)
+#     optimizer = torch.optim.SGD(model.parameters(), 0.025, momentum=0.9, weight_decay=3.0E-5)
+#     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.unpruned_epochs, eta_min=1E-6)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1.2e-3)
 
     train_loader = torch.utils.data.DataLoader(dataset_train,
                                                batch_size=args.batch_size,
@@ -291,7 +292,7 @@ if __name__ == "__main__":
 
     # Prune the model to find a winning ticket
     configure_list = [{
-        'prune_iterations': 2,
+        'prune_iterations': 1,
         'sparsity': args.sparsity,
         'op_types': ['default']
     }]
@@ -329,7 +330,7 @@ if __name__ == "__main__":
                 best_state_dict = copy.deepcopy(model.state_dict())
                 pruner.export_model(model_path=model_path, mask_path=mask_path)
             
-            lr_scheduler.step()
+#             lr_scheduler.step()
 
         print('prune iteration: {0}, loss: {1}, accuracy: {2}'.format(i, loss, accuracy))
 
