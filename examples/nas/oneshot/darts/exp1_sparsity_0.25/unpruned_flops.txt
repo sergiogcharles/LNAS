@@ -1,2 +1,0 @@
-Total flops: 618021504
-Equivalent to: 618.022M

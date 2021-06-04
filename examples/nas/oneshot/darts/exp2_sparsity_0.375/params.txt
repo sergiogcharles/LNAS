@@ -1,2 +1,2 @@
-Total params: 3923470
-Equivalent to: 3.923M
+Total params: 4673638
+Equivalent to: 4.674M
